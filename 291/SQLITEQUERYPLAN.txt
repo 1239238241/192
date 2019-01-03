@@ -1,0 +1,108 @@
+--1) Let's create some tables
+sqlite> .headers on
+sqlite> .mode list
+sqlite> create table t1 (a text, b, text, c text);
+sqlite> create table t2 (c text, d, text, e text);
+
+2) A simple query plan involving only one table
+sqlite> explain query plan select a,b from t1 where a=1;
+selectid|order|from|detail
+0|0|0|SCAN TABLE t1
+-- output schema: (selectid, order, from, detail)
+
+3) Let's see what happens when there is an index on t1 (a)
+sqlite> create index i1 on t1(a);
+sqlite> explain query plan select a,b from t1 where a=1;
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING INDEX i1 (a=?)
+
+4) The index should support range queries as well
+sqlite> explain query plan select a,b from t1 where a>1 and a<5;
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING INDEX i1 (a>? AND a<?)
+
+5) Let¡¯s create another index on t1 ¨C with search key (a,b)
+sqlite> create index i2 on t1(a,b);
+sqlite> explain query plan select a,b from t1 where a>1 and a<5;
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING COVERING INDEX i2 (a>? AND a<?)
+
+6) Let's try searching on b
+sqlite> explain query plan select * from t1 where b>1;
+selectid|order|from|detail
+0|0|0|SCAN TABLE t1 
+
+7) Try a query that is covered by an index 
+sqlite> explain query plan select a,b from t1 where b>1;
+selectid|order|from|detail
+0|0|0|SCAN TABLE t1 USING COVERING INDEX i2
+
+8) Let¡¯s try a join
+sqlite> explain query plan select a,b,d from t1, t2 where t1.c =
+t2.c and t1.a=1;
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING INDEX i1 (a=?)
+0|1|1|SCAN TABLE t2
+-- a nested loop with index scan of t1 as the outer loop (order 0) using a=1
+-- the table scan of t2 is the inner loop (order 1)
+
+9) Let's change the query a bit
+sqlite> explain query plan select a,b,d from t1, t2 where t1.a = t2.e;
+0|0|1|SCAN TABLE t2
+0|1|0|SEARCH TABLE t1 USING COVERING INDEX i2 (a=?)
+-- canot use the index scan as an outer loop with no value to look up!
+-- the access order changes in the nested loop (scanning t2 before t1). 
+
+10) Let's change the columns (no indexed column in the where clause)
+sqlite> explain query plan select a,b,d from t1, t2 where t1.c = t2.c;
+selectid|order|from|detail
+0|0|0|SCAN TABLE t2
+0|1|1|SEARCH TABLE t1 USING AUTOMATIC COVERING INDEX (c=?)
+-- an index is created automatically just for this query (most likely to be 
+-- deleted after this query)
+-- again nested loop join with the index used for the inner relation
+
+11) Let' dictate our own join order
+explain query plan select a,b,d from t1 cross join t2 where t1.c = t2.c;
+0|0|0|SCAN TABLE t1
+0|1|1|SEARCH TABLE t2 USING INDEX sqlite_autoindex_t2_1 (c=?)
+-- sqlite always uses left-to-right order for cross-join
+
+12 Try an automatically generated index on t2 via a primary key declaration
+sqlite> drop table t2;
+sqlite> create table t2(c text, d text, e text, primary key (c));
+sqlite> explain query plan select a,b,d from t1, t2 where t1.c =
+t2.c and t1.a=1;
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING INDEX i1 (a=?)
+0|1|1|SEARCH TABLE t2 USING INDEX sqlite_autoindex_t2_1 (c=?)
+
+13) Declare table t1 with a primary key and see how the query plan changes
+sqlite> drop table t1;
+sqlite> create table t1 (a text, b text, c text, primary key (a));
+sqlite> explain query plan select a,b from t1 where a='1';
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING INDEX sqlite_autoindex_t1_1 (a=?)
+
+14) Try an integer primary key (single attribute, type Integer) => sqlite creates a clustered, integrated index
+sqlite> drop table t1;
+sqlite> create table t1 (a integer, b text, c text, primary key (a));
+sqlite> explain query plan select a,b from t1 where a='1';
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING INTEGER PRIMARY KEY (rowid=?)
+-- integer primary key acts as rowid (meaning the index is clustered)
+
+15) Can instruct a table/index be analyzed for better query plans
+sqlite> analyze t1;
+sqlite> analyze i1;
+-- We have no data in those tables, and we don't expect much here
+
+16) Can intruct not to use a particular index
+sqlite> explain query plan select a,b,c from t1 where a=1 and b>2;
+selectid|order|from|detail
+0|0|0|SEARCH TABLE t1 USING INDEX i2 (a=? AND b>?)
+
+-- add + to columns in the where clause to exlude index access
+sqlite> explain query plan select a,b,c from t1 where +a=1 and b>2;
+selectid|order|from|detail
+0|0|0|SCAN TABLE t1

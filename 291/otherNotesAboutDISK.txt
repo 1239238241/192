@@ -1,0 +1,157 @@
+Why physical layer?
+  - better understanding of the overhead and the cost
+  - not every data management problem is best solved using a DBMS 
+    . e.g. noSQL databases
+    . limited queries (don't need the full power of SQL) 
+    . willing to do some programming
+  - organizing data outside DBMS
+
+Physical Layer involves
+  1. organizing files on disk
+  2. structuring data in files (file structures)?
+  3. creating and maintaining indexes
+
+Computer memory hierarchy (ordered in increasing size/decreasing speed  and cost)
+  - processor registers: very fast, very expensive, very small, volatile
+  - processor cache: very fast, expensive, 
+  - RAM: fast, affordable, volatile
+  - SSD (solid state drive): 
+  - Flash: slower, cheap, non-volatile
+  - Disk: slow, very cheap, non-volatile
+  - Tape: slow (and no random access), cheap, non-volatile
+
+This course is concerned about Disk and RAM: 
+Typical setting: Data is stored on disk (or tape) and fetched to RAM when needed
+
+Organizing data on a disk:
+==========================
+ - disk components: surfaces, tracks, sectors, cylinders
+ - speeds: 5400rpm, 7200 rpm, 10k rpm, 15k rpm (not mainstream)
+
+Q1. How much data can we store in a disk pack?
+
+Example. A Barracuda disk from Seagate consists of 930,408 cyliners with 2 tracks per cylinder, 63 sectors per track and 512 bytes per sector. What is the
+disk capacity in bytes?
+
+bytes / track = bytes/sector   *  sectors/track
+              = 512 * 63 = 32256 bytes 
+bytes / cyliner = bytes/track * tracks/cyliner
+                = 32256 bytes * 2 = 64512 bytes
+bytes / disk = bytes/cyliner * cyliner/disk
+             = 64512 bytes * 930408 = 60,022,480,896 bytes = 60 GB
+
+Data units:
+  Sector: the smallest unit that can be transfered to/from a disk head
+  Page: the smallest unit of transfer for most programs; 
+        page size is usually c * sector size for some constant c.
+
+Q2. How long does it take to read a block?
+
+Access time = seek time + rotational delay + transfer time
+
+Seek Time: the time needed to move the head to the right track
+
+  specified as : min seek time (eg. 1 msec)
+                 max seek time (eg. 22 msec)
+                 avg seek time (eg. 9 msec)
+
+Rotational Delay (or latency) : the time needed for the beginning of
+the desired sector to rotate into position under the disk head.
+
+                 min = 0
+                 max = time for one disk rotation
+                 avg = (min + max)/2 = max/2
+
+Transfer Time: the time needed to read the data
+
+ = (# bytes transferred / # bytes on a track) * time for one disk rotation
+
+Example . Consider a Barcuda disk from Seagate with 63 sectors per track, 
+512 bytes per sector and average seek time of 9 msec. The disk platters rotate 
+at 7200 rpm (revolution per minute). How long does it take to read a block of
+5 sectors?
+
+  time for one rotation = 1/7200 minutes = 60/7200 seconds = 8.33 msec
+  avg rotational delay = time for one rotation / 2 = 8.33/2 = 4.16 msec
+
+  transfer time = sectors transferred * transfer time per sector
+  transfer time per sector = transfer time per track / sectors per track
+                = 8.33 / 63 = 0.13 msec
+  transfer time = sectors transferred * transfer time per sector
+                = 5 * 0.13 = 0.65 msec
+
+  time to read a block =
+  9 (seek time) + 4.16 (avg rotational delay) + 0.65 (transfer time) = 13.81 msec
+
+-- Slides on reducing I/O costs --
+
+Organizing records in a file:
+=============================
+Experiment: Create a file (say t.txt) with a few characters inside and check out its size on disk. If using lab machines, try it on a local disk say at /tmp since the behaviour is different on nfs files.
+  du -hs t.txt
+
+1. Heap files; 
+  - with or w/o gaps
+  - operations: insert, delete, search
+  - good performance for insert and full scan
+  - bad performance for searches and deletes (need a search first)
+2. Sorted files
+  - with or w/o gaps
+  - operations: insert, delete, search
+  - good for searches (binary search), deletes (tagging!)
+  - bad for inserts (difficult to keep the file sorted)
+  - full scan is the same as in a heap file
+3. Indexed files
+
+To provide a fast access to data
+  - sorting (dictionary, phone book)
+  - indexing (book index): 
+  (1) hash indexes, 
+  (2) tree-structured indexes 
+
+Sorting:
+  - given a list of 10 numbers, try to sort them
+    - can be done in RAM (internal sort)
+  - given a list of 1 billion records, try to sort them
+    (can't fit in RAM)
+    - divide the file into k small segments
+    - sort each segment in main memory
+    - merge k sorted segments
+  - Benchmarks: 
+    - Penny sort : sort as much as you can for a penny
+    - Minute sort: sort as many records as you can in a minute
+    - TeraByte: how fast can you sort a terabyte of 100-byte  records?
+    Categories: Daytona (stock car), Indy (formula 1)
+
+Indexing
+  - efficiently locate rows without searching the entire table 
+  - search key: id, name, title (can have duplicate values)
+    keys with the same values are stored together.
+  - index entry: 
+    (1) <search key, full record>; e.g. entries in a phone book or a dictionary 
+    This choice results in an integrated index.
+    (2) <search key, id or address>
+      address: rid, page id, a key (e.g. emp id), location address
+    This typically results in separate index and data files.
+  - Clustered vs. unclustered index
+    (1) Clustered index
+    Index entries and data records are ordered on the same columns. 
+    At most one clustered index. Good for range queries.
+    (2) Unclustered index: Index entries and data records are not ordered on the
+    same columns. Any number of unclustered indexes are possible.
+  - Dense vs Sparse
+    (1) Dense index: index entry for each data record
+    (1) Sparse index: index entry for each data page
+  - Index overhead
+    (1) accessing the data
+    (2) updating the data
+
+  
+--- Slides on files
+
+Example. Consider a data file with 10,000 pages and a range query that
+returns 100 rows. Suppose there are 20 rows/page and 200 index entries/page.
+Assuming that an index access to retrive an entry takes at most 2 page transfers, which one of the following file organizations does involve fewer page
+transfers? (1) heap file, (2) sorted file, (3) unclustered index, (4) clustered index.
+
+To be worked out in class

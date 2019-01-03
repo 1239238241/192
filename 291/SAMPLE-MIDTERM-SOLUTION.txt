@@ -1,0 +1,121 @@
+Q1. a)T, b)T, c)F, d)T
+Q2. See the textbook.
+Q3. 
+ a) midterm-er.gif 
+ b)
+  CREATE TABLE sale (
+    start	date,
+    end		date,
+    PRIMARY KEY (start,end)
+  );
+  CREATE TABLE product (
+    upc		char(8),
+    qty		int,
+    price	real,
+    PRIMARY KEY (upc)
+  );
+  CREATE TABLE onsale (
+    upc		char(8),
+    start	date,
+    end		date,
+    saleprice	real,
+    PRIMARY KEY (upc, start, end),
+    FOREIGN KEY (upc) REFERENCES product,
+    FOREIGN KEY (start,end) REFERENCES sale
+  );
+  CREATE TABLE seasonal (
+    upc		char(8),
+    season	char(6),
+    PRIMARY KEY (upc),
+    FOREIGN KEY (upc) REFERENCES product ON DELETE CASCASE
+  );
+%%%%%%%%%%%%
+drop table rents;
+drop table movies;
+drop table classes;
+create table classes (
+  rent_type     int,
+  price		real,
+  primary key (rent_type)
+);
+
+create table movies (
+  title		char(25),
+  category	char(10),
+  rent_type	int,
+  primary key (title),
+  foreign key (rent_type) references classes
+);
+
+create table rents (
+  customer	char(15),
+  title		char(25),
+  checkout	date,
+  return	date,
+  primary key (customer,title),
+  foreign key (title) references movies
+);
+
+insert into classes values (2, 2.99);
+insert into classes values (3, 5.99);
+insert into movies values ('it is a wonderful life', 'family', 2);
+insert into rents values ('john smith', 'it is a wonderful life',
+'23-FEB-2010', '01-MAR-2010');
+%%%%%%%%%%%%%%%%
+
+Q4.
+ a) select r1.customer
+    from rents r1, movies m1, rents r2, movies m2
+    where r1.title=m1.title and m1.category='action' and  
+          r2.title=m2.title and m2.category='family' and
+          r1.customer=r2.customer
+ 
+ b) select title, price
+    from movies m, classes c
+    where m.rent_type=c.rent_type
+      and title like '%star%'
+    order by price asc
+
+ ?) select distinct r1.customer			[deleted]
+    from rents r1, movies m1, rents r2, movies m2
+    where r1.title=m1.title and m1.category='action' and  
+          r2.title=m2.title and m2.category='action' and
+          m1.title!=m2.title and r1.customer=r2.customer 
+
+    select customer
+    from rents r, movies m
+    where r.title=m.title and m.category='action'
+    group by customer
+    having count(distinct title)>=2;
+
+ c) select m1.category, m2.category
+    from movies m1, rents r1, movies m2, rents r2
+    where m1.title=r1.title and m2.title=r2.title and 
+          r1.customer=r2.customer and m1.category!=m2.category
+    group by m1.category, m2.category
+    having count(distinct r1.customer) >=5
+ 
+ d) select rent_type, count(distinct m.title), count(*)
+    from movies m, rents r
+    where m.title=r.title
+    group by rent_type
+
+Q5.
+ a) select m1.category, m2.category
+    from movies m1, rents r1, movies m2, rents r2
+    where m1.title=r1.title and m2.title=r2.title and
+          r1.customer=r2.customer and m1.category>m2.category
+    group by m1.category, m2.category
+    having count(distinct r1.customer) >=5;
+
+ b) select rent_type, count(distinct title), count(*)
+    from classes left outer join movies using (rent_type) 
+         left outer join rents using (title)
+    group by rent_type;
+Q6.
+ a) PROJECT_{title} SELECT_{category='comedy'} (movies)
+ b) PROJECT_{customer,title} rents / 
+    PROJECT_{title} SELECT_{title <> 'it is a wonderful life'} (movies)
+Q7.
+ a) Joe Allen
+ b) 2

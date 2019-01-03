@@ -1,0 +1,309 @@
+Database Design: Schema Refinement
+----------------------------------
+Problems with SuperRelation shown in class:
+
+  - More redundancy --> space is wasted
+
+  - Insertion anomalies:
+
+     insert a new vendor
+     No transactions available yet.
+     Value of unspecified columns? nulls/defaults ...
+
+  - Deletion anomalies:
+
+     delete a vendor
+     delete the row? all transactions of customers will be deleted.
+     What if a customer only has transactions with the vendor being deleted?
+       - should we delete the customer?
+       - should we set some values to null?
+
+  - Update anomalies
+
+     update a vendor
+     - how many tuples need to be updated? 
+
+Normal forms
+  All, 1NF, 2NF, 3NF, BCNF, 4NF, 5NF
+
+--------------------------------------------
+Basic Concepts:
+
+Def. functional dependency X --> Y holds over 
+relation R if whenever two tuples of R have the 
+same X-value, they must also have the same Y-value.  
+  - reads "X determines Y" or
+         "Y is functionally dependent on X". 
+  - must hold over all instances.
+  - X can be a set of attributes.
+  - shorthand notation: X --> YZ equivalent to 
+    X --> Y and X --> Z
+
+Example: Student(sid, name, address)
+  FDs: {sid --> name, sid --> address}
+  Meaning of FDs
+  Implications for keys?
+
+Example: R(A,B,C,D,E)
+
+  FDs: {AB --> CDE}
+
+  - AB is a super key because AB --> ABCDE 
+  - AB is a key because it is minimal
+ 
+Example: Student(sid, name, address)
+  Suppose sid is  a key. What can we say about FDs?
+
+  FD: {sid --> name, sid --> address}
+
+Question: Given the following FDs 
+    A --> B, 
+    B --> C
+  does it imply
+    A --> C?
+
+Answer: Yes?
+
+A real example:
+  {sid --> phone, phone --> address} implies sid --> address
+
+Given some FDs, we can infer additional FDs. 
+How? using Armstrong axioms: Reflexivity, Augmentation, Transitivity
+  (check them in the textbook)
+
+Def. Given a set F of FDs, the closure of F, denoted
+by F+, is the set of all FDs logically implied by
+the FDs in F.
+
+Example. F={empno -> sin, sin -> empno, empno -> deptno, deptno -> daddress}
+
+F+= ...
+
+F+ could be large (exponential in the size of F),
+so we try to avoid computing it.
+
+Exercise. Give a relation R and a set of FDs F
+such that |F+| is exponential in the size of F.
+
+Question: Is (X --> Y) in F+ ??
+Answer: compute X+, the closure of X under F 
+	(the set of attributes determined by X)
+	(X-->Y) is in F+ if Y in X+. 
+
+
+Algorithm: compute the closure of X under F
+
+X+ = X
+while there exists (U --> V) in F
+      such that U subseteq X+ and V not subseteq X+ do
+  X+ = X+ union V
+
+
+Example. R(A,B,C,D), F={A-->B, BC-->D}
+A+ = AB
+(AC)+ = ABCD	AC is a key
+
+Boyce-Codd Normal Form (BCNF)
+-----------------------------
+Def. A relation R is in BCNF if for every non-trivial FD X-->Y on R
+(X, Y subseteq R)
+  - X is a superkey of R
+
+X --> Y is a trivial FD iff Y subseteq X
+
+A Schema is in BCNF if all its relations are in BCNF.
+
+Example. R(A,B,C,D,E,F), FD={A-->BC, D-->EF}
+
+Is the relation in BCNF? no
+A+ = {ABC} != {ABCDEF}
+
+Q. Why does a BCNF violation produce a "bad" relation?
+   - Let's consider a real example: 
+     Loans(sid, name, address, isbn, title, author) 
+     FD = {sid --> name, address,
+           isbn --> author, title}
+   ==> Loans has redundancy  and this produces anomalies
+
+Example. Given the FDs {A-->BC, D-->AEF},
+are the relations R1(A,D,E,F), R2(A,B,C) in BCNF? yes
+
+What about relations R3(B,C,D) and R4(A,B,D)? 
+
+
+Third Normal Form
+-----------------
+Def. A relation R is in 3NF if for every non-trivial FD X-->Y on R
+(X, Y subseteq R)
+  - X is a superkey of R or
+  - Y is part of a key (prime).
+
+Example. R(A,B,C), FD={AB-->C, C-->B)
+
+- Is R in BCNF? no because C is not a superkey.
+
+  Keys: AB, AC (in general, the problem of finding all keys is NP-complete)
+- Is R in 3NF? yes
+
+  AB --> C  : AB is a key
+  C  --> B  : B is part of a key
+
+Finding keys of a relation
+  - start with one attribute and add more attributes until it is unique and
+repeat this until all keys are found
+  - use some heuristics to prune the search space
+
+Example. R(A,B,C), FD={A-->B, B-->C}
+
+- Is R in 3NF? no
+
+  Keys: A
+  B -->C : B is not a superkey; C is not part of a key
+
+Example. Bookings(title, theater, city)
+         FD : {theater --> city, 
+	       title city --> theater}
+         Keys: (theater, title), (title,city)
+	 BCNF: no, why?
+	 3NF: yes, why? 
+
+Exercise. Given superrelation(account, cname, prov, balance, crlimit,
+   vno, vname, city, amount) with FDs
+   account --> {cname, prov, balance, crlimit},
+   vno --> {vname, city},
+   {account, vno} --> amount}
+Is the relation in BCNF? How about 3NF? Why?
+
+A decomposition of superrelation into BCNF:
+   customers(account, cname, prov, balance, crlimit)
+   vendors(vno, vname, city)
+   transactions(account, vno, amount)
+
+ Two important properties:
+   - customers |X| vendors |X| transactions = 
+     superrelation (lossless join)
+   - dependencies are preserved.
+
+Not all decompositions are lossless. See an example.
+Check out Sec 6.6.1 in the textbook for definitions and more details.
+
+Lossless-join decomposition into BCNF:
+
+  Alg. 
+  1. for every FD X --> Y that is defined on R(Z) and violates BCNF, 
+  decompose R(Z) into R1(X+ intersect Z) and R2( (Z-X+) U X ).
+  2. repeat step 1 until there is no violation.
+
+A discussion of the correctness...
+  - the algorithm produces a lossless-join decomposition
+  - the resulting relations are in BCNF
+The algorithm is non-deterministic.
+
+Examples: Consider the relation R(A,B,C,D) and FDs
+  AB --> C, D --> A, C--> D
+BCNF violations:
+ C --> D, D --> A
+A BCNF decomposition:
+    AB --> CD, D --> A, C --> DA
+    R1(D,A), R2(B,C,D) 
+    R1(D,A), R21(C,D), R22(B,C)
+
+Exercise. Consider the relation R(A,B,C,D) and FDs
+  B --> C, B --> D
+BCNF violations?
+A BCNF decomposition?
+
+Projection of dependencies on each relation:
+  - non-trivial FDs X --> B where X and B are attributes of the relation
+  - in principle, must compute the closure of every subset 
+ AB --> CD, D --> A, C --> D
+    R11(D,A): D --> A
+    R12(C,D): C --> D
+    R2(B,C): 
+    -- lost a dependency!
+    Consider the decomposition S(B,C,D) and T(A,D) of R(A,B,C,D). Find 
+    the projection of FDs on each relation.
+    S: ?
+    T: ?
+  
+Example. Given relation R(A,B,C) and FDs {AB --> C, C --> A}, find a
+dependency-preserving BCNF decomposition.
+  
+  violation: C -- > A
+  decomposition: CA, CB
+  It is not always possible to find a dependency preserving BCNF decomposion!
+
+Question: given a choice between dependencies that can be preserved, which
+ones do we realy want to preserve?
+
+Moral: use the minimal set of FDs; this is called minimal cover. 
+Algo for finding the minimal cover of F
+  step 1: convert FDs so that they have only one attribute on the right side
+  step 2: remove all redundant attributes from the left sides
+          (remove an attribute if the closure of the leftside without the 
+	   attribute includes the attribute)
+  step 3: remove all redundant FDs
+See Sec 6.8 in the textbook for more details and examples.
+
+e.g. find minimal FDs.
+  R(A,B,C,D,E)
+  FDs: DC-->B,  E-->AC,  DE-->AB,  A-->B,  B-->C
+
+Example 6.8.1 from textbook. Find a minimal cover for the following FDs:
+  ABH->C
+  A->D,
+  C->E,
+  BGH->F
+  F->AD
+  E->F
+  BH->E
+ minimal cover is BH->C, A->D, C->E, F->A, E->F
+
+Lossless-join and depnedency-preserving decomposition into 3NF
+  - Given a relation R with a minimal set of FDs F
+  - Find a lossless-join BCNF decomposition of R
+  - For every FD X --> A in F which is not preserved after the
+  decomposition, create a relation with schema XA
+  - Of the two relation schemes R1(X) and R2(Y) where X \subset of Y, remove 
+  relation schema R1(X) 
+
+The decomposition algorithm in the textbook is missing the last step and 
+it will generate redundant tables. 
+
+Discuss the correctness...
+  Can we violate 3NF in the third step? 
+  Proof by contradiction. Discuss the possible cases of violations.
+
+Example. Given relation R(A,B,C,D,E,F) and FDs 
+{A --> B, CE --> D, BC --> D, AE --> F, CD --> A} 
+
+1) The FDs are minimal (check it)
+2) A BCNF decomposition of R.
+
+- ABCDEF: based on A --> B, decompose it to AB, ACDEF
+- ACDEF: based on AE --> F, decompose it to AEF, ACDE
+- ACDE: based on CD --> A, decompose it to CDA, CDE
+
+3) The projection of dependencies on each relation:
+  - AB: A --> B
+  - AEF: AE --> F
+  - CDA: CD --> A
+  - CDE: CE --> D
+
+4) The lost dependencies:
+  - BC --> D
+
+5) A lossless and dependency-preserving decomposition to 3NF:
+  {AB, AEF, CDA, CDE} U {BCD}
+  
+Question: why do we want to preserve the FDs?
+  Bookings(title, theater, city)
+  FDs : {theater --> city,  
+         city,title --> theater}
+  What is wrong with the dcomposition R1(theater, city) and R2(title,theater)?
+
+Desirable Properties of a decomposition:
+  1 - no redundancy
+  2 - minimal number of relations
+  3 - lossless-join
+  4 - dependency preserving
